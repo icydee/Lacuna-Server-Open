@@ -44,6 +44,28 @@ sub assign_alliance_leader {
     };
 }
 
+
+sub alter_office_status {
+    my ($self, $args) = @_;
+
+    my $empire      = $self->get_empire_by_session($args->{session_id});
+    my $building    = $self->get_building($empire, $args->{building_id});
+    if (not $self->{empire_id}) {
+        confess [1002, 'You must specify which empire you need to change office.'];
+    }
+    if (not $self->{office}) {
+        confess [1002, 'You must specify which office to change.'];
+    }
+    # Check if 'office' is one of 'war', 'membership_rights', 'membership', 'public_relations', 'construction'.
+    # TODO
+    my $status_to = $args->{new_status} ? 1 : 0;
+    my ($office) = Lacuna->db->resultset('Office')->search({
+        empire_id   => $empire->id,
+        type        => $type,
+    });
+
+}
+
 sub create_alliance {
     my ($self, $session_id, $building_id, $name) = @_;
     my $empire = $self->get_empire_by_session($session_id);
@@ -231,7 +253,25 @@ sub exchange_with_stash {
     return $self->view_stash($empire, $building);
 }
 
-__PACKAGE__->register_rpc_method_names(qw(exchange_with_stash view_stash donate_to_stash expel_member update_alliance get_pending_invites get_my_invites assign_alliance_leader create_alliance dissolve_alliance send_invite accept_invite withdraw_invite reject_invite leave_alliance get_alliance_status));
+__PACKAGE__->register_rpc_method_names(qw(
+    alter_office_status
+    exchange_with_stash 
+    view_stash 
+    donate_to_stash 
+    expel_member 
+    update_alliance 
+    get_pending_invites 
+    get_my_invites 
+    assign_alliance_leader 
+    create_alliance 
+    dissolve_alliance 
+    send_invite 
+    accept_invite 
+    withdraw_invite 
+    reject_invite 
+    leave_alliance 
+    get_alliance_status
+));
 
 
 no Moose;

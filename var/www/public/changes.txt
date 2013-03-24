@@ -1,3 +1,9 @@
+Office:
+ - Add: Alliance leaders can now create officers
+ - Add: Officers have responsibility for different parliament votes
+ - Add: Empires can now specify auto-voting for certain categories of propositions
+ - TODO: alliance specific email addresses, e.g. Membership@MyAlliance, Leader@MyAlliance, All@MyAlliance
+
 3.0884:
  - Fix: Bug when upgrading Glyph buildings, but with no hall plans
 

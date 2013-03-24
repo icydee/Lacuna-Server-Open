@@ -83,6 +83,7 @@ Returns everything about an alliance that members should know.
             {
                 "empire_id" : "id goes here",
                 "name" : "Klingons",
+                "offices" : ['war','membership'],
             }
             ...
         ],
@@ -103,6 +104,38 @@ A session id.
 The unique id of the embassy.
 
 
+=head2 alter_office_status
+
+This takes a hash-ref of named arguments, e.g.
+
+ {
+   session_id : "session-id-goes-here",
+   building_id : 123456,
+   empire_id : 945,
+   office : 'war',
+   new_status : 0,
+ }
+
+=head2 session_id (required)
+
+A session ID
+
+=head2 building_id (required)
+
+The unique ID of the embassy
+
+=head2 empire_id (required)
+
+The unique ID of the empire to assign (or demote) to the office
+
+=head2 office (required)
+
+One of 'war', 'members_rights', 'membership', 'public_relations', 'construction'.
+
+=head2 new_status (optional)
+
+Set to '1' to give this empire the office specified, set to '0' to remove the office from the empire. 
+Default (if not specified) is '0' (remove office)
 
 
 

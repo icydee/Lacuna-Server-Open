@@ -122,12 +122,16 @@ sub exchange {
 
 sub get_status {
     my $self = shift;
-    my $members = $self->members;
+    my $members = $self->members->select(undef,{order_by => 'name'});
     my @members_list;
     while (my $member = $members->next) {
+        my @office_list = Lacuna->db->resultset('Office')->search({
+            empire_id   => $member->id,
+        });
         push @members_list, {
             empire_id   => $member->id,
             name        => $member->name,
+            offices     => \@office_list,
         };
     }
     return {
