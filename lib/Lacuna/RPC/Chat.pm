@@ -7,6 +7,7 @@ extends 'Lacuna::RPC';
 use Firebase::Auth;
 use Firebase;
 use Gravatar::URL;
+use Ouch;
 
 sub init_chat {
     my ($self, $session_id) = @_;
@@ -15,12 +16,15 @@ sub init_chat {
 
     my $config = Lacuna->config;
     my $firebase_config = $config->get('firebase');
+    return undef unless $firebase_config;
+    return undef if $empire->current_session->is_sitter && $empire->id > 1;
     my $chat_auth = Firebase::Auth->new(
         secret  => $firebase_config->{auth}{secret},
 #        debug   => \1,
         data    => {
-            id          => $empire->id,
-            chat_admin  => $empire->chat_admin ? \1 : \0,
+            uid          => $empire->id,
+            isModerator => $empire->chat_admin ? \1 : \0,
+            isStaff => $empire->is_admin ? \1 : \0,
         }
      #   data   => $data,
     );
@@ -29,45 +33,77 @@ sub init_chat {
         authobj     => $chat_auth,
     );
     my $chat_name = $empire->name;
-
-if (0) {
-#    if ($empire->alliance_id) {
-#        $chat_name .= " (".$empire->alliance->name.")";
-    	my $room = $firebase->get('room-metadata/'.$empire->alliance_id);
-        if (defined $room) {
-            $firebase->patch('room-metadata/'.$empire->alliance_id.'/authorizedUsers', {
-                $empire->id => \1
-            });
+    my $aname;
+    $chat_name =~ s/[^0-9a-zA-Z_ ]/_/g;
+    $chat_name =~ s/__*/_/g;
+    if ($empire->alliance_id) {
+        $aname = $empire->alliance->name;
+        $aname =~ s/[^0-9a-zA-Z_ ]/_/g;
+        $aname =~ s/__*/_/g;
+        $chat_name .= " (".$aname.")";
+    }
+    if ($empire->alliance_id) {
+    	my $room = eval { $firebase->get('room-metadata/'.$empire->alliance_id) };
+        if ($@) {
+  	     warn bleep;
+        }
+        elsif (defined $room) {
+            eval {
+            	$firebase->patch('room-metadata/'.$empire->alliance_id.'/authorizedUsers', {
+                	$empire->id => \1
+           	    });
+	        };
+            if ($@) {
+                warn bleep;
+            }
         }
         else {
-            $firebase->put('room-metadata/'.$empire->alliance_id, {
-                id              => $empire->alliance_id,
-                name            => $empire->alliance->name,
-                type            => 'private',
-                createdByUserId => $empire->id,
-                '.priority'     => {'.sv' => 'timestamp'},
-                authorizedUsers => {$empire->id => \1},
-            });
+            eval { 
+	            $firebase->put('room-metadata/'.$empire->alliance_id, {
+        	        id              => $empire->alliance_id,
+                	name            => $aname,
+	                type            => 'private',
+        	        createdByUserId => $empire->id,
+                	'.priority'     => {'.sv' => 'timestamp'},
+	                authorizedUsers => {$empire->id => \1},
+        	    });
+	        };
+	        if ($@) {
+		        warn bleep;
+	        }
         }
+        $firebase->put('users/'.$empire->id.'/rooms/'.$empire->alliance_id, {
+            id      => $empire->alliance_id,
+            active  => \1, 
+            name    => $aname,
+        });
     }
-    my $gravatar_id = gravatar_id($empire->email||$empire->id.'@example.com');
+#    if ($empire->is_admin) {
+#        $chat_name .= " <ADMIN>";
+#    }
+#    elsif ($empire->chat_admin) {
+#        $chat_name .= " <MOD>";
+#    }
+    my $gravatar_id = gravatar_id($empire->email);
     my $gravatar_url = gravatar_url(
         email   => $empire->email,
         default => 'monsterid',
 	size    => 300,
+        https   => 1,
 	);
     my $ret = {
         status          => $self->format_status($empire),
         gravatar_url    => $gravatar_url,
         chat_name       => $chat_name,
         chat_auth       => $chat_auth->create_token,
-        chat_admin	=> $empire->chat_admin ? \1 : \0,
+        isStaff         => $empire->is_admin   ? \1 : \0,
+        isModerator     => $empire->chat_admin ? \1 : \0,
     };
-if (0) {
+    if (0) {
 #    if ($empire->alliance_id) {
         $ret->{private_room} = {
             id          => $empire->alliance_id,
-            name        => $empire->alliance->name,
+            name        => $aname,
         };
     }
     return $ret;

@@ -40,7 +40,7 @@ has scratch     => (
 
 sub next_viable_colony {
     my $self = shift;
-    return $self->viable_colonies->search(undef, { rows => 1, order_by => 'rand()' })->single;
+    return $self->viable_colonies->search(undef, { order_by => 'rand()' })->first;
 }
 
 sub create_empire {
@@ -57,8 +57,8 @@ sub create_empire {
     my $db      = Lacuna->db;
     my $empire  = $db->resultset('Lacuna::DB::Result::Empire')->new(\%attributes)->insert;
 #    my $zone    = $db->resultset('Lacuna::DB::Result::Map::Body')->get_column('zone')->max;
-#    my $home    = $self->viable_colonies->search({zone => $zone},{rows=>1})->single;
-    my $home    = $self->viable_colonies->search(undef,{rows=>1})->single;
+#    my $home    = $self->viable_colonies->search({zone => $zone})->first;
+    my $home    = $self->viable_colonies->search(undef,{ order_by => 'rand()'})->first;
     my @to_demolish = @{$home->building_cache};
     $home->delete_buildings(\@to_demolish);
     $empire->found($home);
@@ -217,9 +217,11 @@ sub run_missions {
     while (my $spy = $infiltrated_spies->next) {
         next if $spy->task eq "Sabotage BHG";
         if ($spy->is_available) {
-            if ($spy->on_body->in_neutral_area) {
+            if ($spy->on_body->id != $spy->from_body->id and $spy->on_body->in_neutral_area ) {
 # Check if spy is in neutral zone, if it is, send someone to fetch?
-                say "    Spy ID: ".$spy->id." stuck in neutral zone...";
+                say "    Spy ID: ".$spy->id." escaping from neutral zone...";
+                my $result = eval{$spy->assign("Bugout")};
+                say "        ".$result->{result};
             }
             else {
                 say "    Spy ID: ".$spy->id." running mission...";
@@ -331,7 +333,7 @@ sub pod_check {
 }
 
 sub train_spies {
-    my ($self, $colony, $subsidise) = @_;
+    my ($self, $colony, $chance, $subsidise ) = @_;
     say 'TRAIN SPIES';
 
     my $intelligence = $colony->get_building_of_class('Lacuna::DB::Result::Building::Intelligence');
@@ -339,13 +341,17 @@ sub train_spies {
     return unless defined $intelligence;
 
     my $costs = $intelligence->training_costs;
-    if ($subsidise) {
-        my $spies = Lacuna->db->resultset('Lacuna::DB::Result::Spies')->search({
+    my $spies = Lacuna->db->resultset('Lacuna::DB::Result::Spies')->search({
             from_body_id => $colony->id,
         })->count;
-        my $max_spies = $intelligence->level;
-        my $deception = $colony->empire->deception_affinity * 50;
-        while ($spies < $max_spies * 3) {
+    my $max_spies = $intelligence->level * 3;
+    my $room_for  = $max_spies - $spies;
+    my $train_count = 0;
+    if ($subsidise) {
+        my $deception = $colony->empire->effective_deception_affinity * 50;
+        while ($train_count < $room_for) {
+            $train_count++;
+            next if (rand(100) < $chance);
             # bypass everything and just create the spy
             my $spy = Lacuna->db->resultset('Lacuna::DB::Result::Spies')->new({
                 from_body_id    => $colony->id,
@@ -371,7 +377,9 @@ sub train_spies {
     else {
         my $can_train = 1;
 
-        while ($can_train) {
+        while ($can_train and $train_count < $room_for) {
+            $train_count++;
+            next if (rand(100) < $chance);
             my $can = eval{$intelligence->can_train_spy($costs)};
             my $reason = $@;
             if ($can) {
@@ -552,7 +560,7 @@ sub start_attack {
         say '    Has one at star already...';
         $seconds = 1;
     }
-    my $probe = $db->resultset('Lacuna::DB::Result::Ships')->search({body_id => $attacking_colony->id, type => 'probe', task=>'Docked'},{rows => 1})->single;
+    my $probe = $db->resultset('Lacuna::DB::Result::Ships')->search({body_id => $attacking_colony->id, type => 'probe', task=>'Docked'})->first;
     if (defined $probe and $seconds == 0) {
         say '    Has a probe to launch for '.$target_colony->name.'...';
         $probe->send(target => $target_colony->star);

@@ -3,7 +3,8 @@ use Moose;
 use utf8;
 no warnings qw(uninitialized);
 extends 'Lacuna::RPC::Building';
-use Lacuna::Util qw(randint random_element);
+use List::Util qw(shuffle);
+use Lacuna::Util qw(randint random_element commify);
 use Lacuna::Constants qw(FOOD_TYPES ORE_TYPES);
 
 sub app_url {
@@ -22,7 +23,7 @@ around 'view' => sub {
     my $body = $building->body;
     
     my $throw = 0; my $reason = '';
-    ($throw, $reason) = check_bhg_neutralized($body);
+    ($throw, $reason) = check_bhg_neutralized($body, $empire);
     if ($throw > 0) {
         $out->{tasks} = [ {
             can          => 0,
@@ -70,6 +71,7 @@ sub find_target {
         confess [-32602,
             'The target parameter should be a hash reference. For example { "body_id" : 9999 }.'];
     }
+    my $db = Lacuna->db;
     my $target;
     my $target_type;
     my $target_word = join(":", keys %$target_params);
@@ -79,40 +81,32 @@ sub find_target {
     }
     if (exists $target_params->{body_id}) {
         $target_word = $target_params->{body_id};
-        $target = Lacuna->db
-            ->resultset('Lacuna::DB::Result::Map::Body')
-            ->find($target_params->{body_id});
+        $target = $db->resultset('Lacuna::DB::Result::Map::Body')->find($target_params->{body_id});
         if (defined $target) {
             $target_type = $target->get_type;
         }
     }
     elsif (exists $target_params->{body_name}) {
         $target_word = $target_params->{body_name};
-        $target = Lacuna->db
-            ->resultset('Lacuna::DB::Result::Map::Body')
+        $target = $db->resultset('Lacuna::DB::Result::Map::Body')
             ->search(
-                { name => $target_params->{body_name} },
-                {rows=>1}
-            )->single;
+                { name => $target_params->{body_name} }
+            )->first;
         if (defined $target) {
             $target_type = $target->get_type;
         }
     }
     elsif (exists $target_params->{x}) {
         $target_word = $target_params->{x}.":".$target_params->{y};
-        $target = Lacuna->db
-            ->resultset('Lacuna::DB::Result::Map::Body')
+        $target = $db->resultset('Lacuna::DB::Result::Map::Body')
             ->search(
-                { x => $target_params->{x}, y => $target_params->{y} },
-                {rows=>1}
-            )->single;
+                { x => $target_params->{x}, y => $target_params->{y} }
+            )->first;
         unless (defined $target) {
-            $target = Lacuna->db
-                ->resultset('Lacuna::DB::Result::Map::Star')
+            $target = $db->resultset('Lacuna::DB::Result::Map::Star')
                 ->search(
-                    { x => $target_params->{x}, y => $target_params->{y} },
-                    {rows=>1}
-                )->single;
+                    { x => $target_params->{x}, y => $target_params->{y} }
+                )->first;
             $target_type = "star" if (defined $target);
         }
         else {
@@ -120,8 +114,7 @@ sub find_target {
         }
         #Check for empty orbits.
         unless (defined $target) {
-            my $star = Lacuna->db
-                ->resultset('Lacuna::DB::Result::Map::Star')
+            my $star = $db->resultset('Lacuna::DB::Result::Map::Star')
                 ->search(
                     {
                         x => { '>=' => ($target_params->{x} -2),
@@ -130,9 +123,8 @@ sub find_target {
                         y => { '>=' => ($target_params->{y} -2),
                                '<=' => ($target_params->{y} +2)
                               }
-                    },
-                    {rows=>1}
-                )->single;
+                    }
+                )->first;
             if (defined $star) {
                 my $sx = $star->x; my $sy = $star->y;
                 my $tx = $target_params->{x}; my $ty = $target_params->{y};
@@ -179,29 +171,64 @@ sub find_target {
         }
     }
     elsif (exists $target_params->{zone}) {
-        my @zones = Lacuna->db
-            ->resultset('Map::Star')->search(
+        my @zones = $db->resultset('Map::Star')->search(
                 undef,
                 { distinct => 1 }
             )->get_column('zone')->all;
         unless ($target_params->{zone} ~~ @zones) {
             confess [ 1002, 'Could not find '.$target_word.' zone.'];
         }
-#Need to find all non-seized via better DB call.
-        my @bodies = Lacuna->db->resultset('Map::Body')->search(
+#New Method
+        my @stations;
+        my @stars;
+        if ($empire->alliance_id) {
+            @stations = $db->resultset('Map::Body')->search( 
+                {
+                    'me.alliance_id' => $empire->alliance_id,
+                },
+                {
+                    join  => 'laws',
+                }
+            )->get_column('id')->all;
+        }
+        if (@stations) {
+            @stars  = $db->resultset('Map::Star')->search(
+                {
+                    'me.zone' => $target_params->{zone},
+                    -or => [
+                        { 'me.station_id' => { 'in' => \@stations } },
+                        { 'me.station_id' => undef },
+                    ],
+                }
+            )->get_column('id')->all;
+        }
+        else {
+            @stars  = $db->resultset('Map::Star')->search(
+                {
+                    'me.zone' => $target_params->{zone},
+                    'me.station_id' => undef,
+                }
+            )->get_column('id')->all;
+        }
+        my @bodies = shuffle $db->resultset('Map::Body')->search(
             {
                 'me.zone'           => $target_params->{zone},
                 'me.empire_id'      => undef,
                 'me.class'          => { like => 'Lacuna::DB::Result::Map::Body::Planet::%' },
                 'me.orbit'          => { between => [$empire->min_orbit, $empire->max_orbit] },
+                'star.id' =>  { 'in' => \@stars } ,
             },
             {
-                join                => 'stars',
-                rows                => 250,
-                order_by            => 'me.name',
-            });
-        my $tref = no_occ_or_nonally(\@bodies, $empire->alliance_id);
-        $target = random_element($tref);
+                join  => 'star',
+            }
+        );
+        if (@bodies > 0) {
+            foreach my $candidate (@bodies) {
+                next if ($candidate->get_buildings_of_class('Lacuna::DB::Result::Building::Permanent::Fissure'));
+                $target = $candidate;
+                last;
+            }
+        }
         if (defined $target) {
             $target_type = "zone";
         }
@@ -209,9 +236,8 @@ sub find_target {
     elsif (exists $target_params->{star_name}) {
         $target = Lacuna->db->
             resultset('Lacuna::DB::Result::Map::Star')->search(
-                { name => $target_params->{star_name} },
-                {rows=>1}
-            )->single;
+                { name => $target_params->{star_name} }
+            )->first;
         $target_type = "star";
     }
     elsif (exists $target_params->{star_id}) {
@@ -223,26 +249,6 @@ sub find_target {
         confess [ 1002, 'Could not find '.$target_word.' target.'];
     }
     return $target, $target_type;
-}
-
-sub no_occ_or_nonally {
-    my ($checking, $aid) = @_;
-
-    $aid = 0 unless defined($aid);
-    my @stripped;
-    for my $check (@$checking) {
-        next if $check->empire_id;
-        next if ($check->get_buildings_of_class('Lacuna::DB::Result::Building::Permanent::Fissure'));
-        if ( defined($check->star->station_id)) {
-            if ($check->star->station->empire->alliance_id == $aid) {
-                push @stripped, $check;
-            }
-        }
-        else {
-            push @stripped, $check;
-        }
-    }
-    return \@stripped;
 }
 
 sub get_actions_for {
@@ -291,11 +297,11 @@ sub task_chance {
         throw     => 0,
         reason    => '',
     };
-    ($return->{throw}, $return->{reason}) = check_bhg_neutralized($body);
+    ($return->{throw}, $return->{reason}) = check_bhg_neutralized($body, $body->empire);
     if ($return->{throw} > 0) {
         return $return;
     }
-    ($return->{throw}, $return->{reason}) = check_bhg_neutralized($target);
+    ($return->{throw}, $return->{reason}) = check_bhg_neutralized($target, $body->empire);
     if ($return->{throw} > 0) {
         return $return;
     }
@@ -306,13 +312,17 @@ sub task_chance {
         if ($return->{throw} > 0) {
             return $return;
         }
+        ($return->{throw}, $return->{reason}) = check_neutral_violation($body, $target, $task);
+        if ($return->{throw} > 0) {
+            return $return;
+        }
     }
     unless ( grep { $target_type eq $_ } @{$task->{types}} ) {
         $return->{throw}   = 1009;
         $return->{reason}  = $task->{reason};
         return $return;
     }
-    unless ($building->level >= $task->{min_level}) {
+    unless ($building->effective_level >= $task->{min_level}) {
         $return->{throw}  = 1013;
         $return->{reason} = sprintf(
             "You need a Level %d Black Hole Generator to do that",
@@ -359,8 +369,8 @@ sub task_chance {
     unless ($building->body->waste_stored >= $task->{waste_cost}) {
         $return->{throw}  = 1011;
         $return->{reason} = sprintf(
-            "You need at least %d waste to run that function of the Black Hole Generator.",
-            $task->{waste_cost}
+            "You need at least %s waste to run that function of the Black Hole Generator.",
+            commify($task->{waste_cost})
         );
         $return->{success} = 0;
         return $return;
@@ -372,7 +382,7 @@ sub task_chance {
 }
 
 sub check_bhg_neutralized {
-    my ($check) = @_;
+    my ($check, $empire) = @_;
     my $tstar; my $tname;
     if (ref $check eq 'HASH') {
         $tstar = $check->{star};
@@ -388,9 +398,16 @@ sub check_bhg_neutralized {
             $tname = $check->name;
         }
     }
+    my $alliance_check = 0;
+    if ($empire) {
+        $alliance_check = $empire->alliance_id if ($empire->alliance_id);
+    }
     my $sname = $tstar->name;
     my $throw; my $reason;
     if ($tstar->station_id) {
+        if ($tstar->station->alliance_id == $alliance_check) {
+            return 0, "";
+        }
         if ($tstar->station->laws->search({type => 'BHGNeutralized'})->count) {
             my $ss_name = $tstar->station->name;
             $throw = 1009;
@@ -399,6 +416,62 @@ sub check_bhg_neutralized {
         }
     }
     return 0, "";
+}
+
+sub check_neutral_violation {
+    my ($body, $target, $task) = @_;
+
+    my $throw; my $reason;
+    my $nz_param = Lacuna->config->get('neutral_area');
+    return 0,"" unless $nz_param;
+    return 0 if $body->in_neutral_area;
+    my $target_in = 0;
+    if (ref $target eq 'HASH') {
+        my $tstar = $target->{star};
+        $target_in = $tstar->in_neutral_area;
+        $target = $tstar;
+    }
+    else {
+        $target_in = $target->in_neutral_area;
+    }
+    my $body_in = $body->in_neutral_area;
+    if (($body_in and $target_in) or (!($body_in) and !($target_in))) {
+# Swap in happening fully inside or fully outside Neutral Area
+        return 0;
+    }
+    my $test_body;
+    if ($target_in) {
+        $test_body = $body;
+    }
+    else {
+        $test_body = $target;
+    }
+
+    my $dtf = Lacuna->db->storage->datetime_parser;
+    my $now = DateTime->now;
+    if ($task->{name} eq "Jump Zone" or $task->{name} eq "Swap Places") {
+        if ( $test_body->neutral_entry > $now ) {
+            $throw = 1009;
+            $reason = sprintf("Colony %s can not enter the neutral area until %s.", $test_body->name, $dtf->format_datetime($test_body->neutral_entry));
+            return $throw, $reason;
+        }
+    }
+    elsif ($task->{name} eq "Move System") {
+        my $bodies = Lacuna->db->resultset('Map::Body')->search({star_id => [ $test_body->star_id ]});
+        my $fail = 0;
+        while (my $obody = $bodies->next) {
+            next unless (defined($obody->empire));
+            if ( $obody->neutral_entry > $now ) {
+                $throw = 1009;
+                $reason = sprintf("Colony %s can not enter the neutral area until %s.", $obody->name, $dtf->format_datetime($obody->neutral_entry));
+                $fail = 1;
+            }
+        }
+        if ($fail) {
+            return $throw, $reason;
+        }
+    }
+    return 0;
 }
 
 sub check_starter_zone {
@@ -643,11 +716,6 @@ sub generate_singularity {
             ) {
                 $allowed = 1;
             }
-            elsif ($tstar->station_id) {
-                if ($body->empire->alliance_id && $tstar->station->alliance_id == $body->empire->alliance_id) {
-                    $allowed = 1;
-                }
-            }
         }
         else {
             if ($tstar->station_id) {
@@ -715,14 +783,14 @@ sub generate_singularity {
                         { on_body_id  => $body->id,
                           empire_id => { '!=' => $body->empire_id },
                           task => 'Sabotage BHG'  },
-                          { rows => 1, order_by => 'rand()' }
-                            )->single;
+                          { order_by => 'rand()' }
+                            )->first;
     if (defined $lock_down) {
         my $power = $lock_down->mayhem_xp + $lock_down->offense;
         my $defense = 0;
         my $hq = $body->get_building_of_class('Lacuna::DB::Result::Building::Security');
         if (defined $hq) {
-            $defense = $hq->level * $hq->efficiency;
+            $defense = $hq->effective_level * $hq->effective_efficiency;
         }
         my $breakthru = int(($power - $defense + $lock_down->luck)/100 + 0.5)+50;
         $breakthru = 5 if $breakthru < 5;
@@ -1233,12 +1301,11 @@ sub bhg_swap {
             my $toracle = $body->get_building_of_class('Lacuna::DB::Result::Building::Permanent::OracleOfAnid');
             if ($toracle) {
                 if ($toracle->is_working) {
-                    my $work_ends = $toracle->work_ends->clone;
-                    $work_ends = $work_ends->add(seconds => 60 * 15);
+                    my $work_ends = DateTime->now->add(seconds => 60 * 5);
                     $toracle->reschedule_work($work_ends);
                 }
                 else {
-                    $toracle->start_work({}, 60 * 15);
+                    $toracle->start_work({}, 60 * 5);
                 }
                 $toracle->update;
             }
@@ -1286,12 +1353,11 @@ sub bhg_swap {
         my $boracle = $body->get_building_of_class('Lacuna::DB::Result::Building::Permanent::OracleOfAnid');
         if ($boracle) {
             if ($boracle->is_working) {
-                my $work_ends = $boracle->work_ends->clone;
-                $work_ends = $work_ends->add(seconds => 60 * 15);
+                my $work_ends = DateTime->now->add(seconds => 60 * 5);
                 $boracle->reschedule_work($work_ends);
             }
             else {
-                $boracle->start_work({}, 60 * 15);
+                $boracle->start_work({}, 60 * 5);
             }
             $boracle->update;
         }
@@ -1429,7 +1495,7 @@ sub bhg_make_asteroid {
     my @fissures = $body->get_buildings_of_class('Lacuna::DB::Result::Building::Permanent::Fissure');
     my @to_demolish = @{$body->building_cache};
     $body->delete_buildings(\@to_demolish);
-    my $new_size = int($building->level/5);
+    my $new_size = int($building->effective_level/5);
     $new_size = 10 if $new_size > 10;
     $body->update({
         class                     => 'Lacuna::DB::Result::Map::Body::Asteroid::A'.randint(1,Lacuna::DB::Result::Map::Body->asteroid_types),
@@ -1460,8 +1526,8 @@ sub bhg_random_make {
     my $target = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
         ->search(
             {zone => $body->zone, empire_id => undef, },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $btype = $target->get_type;
     my ($throw, $reason) = check_bhg_neutralized($target);
     if ($throw > 0) {
@@ -1500,8 +1566,8 @@ sub bhg_random_type {
     my $target = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
         ->search(
             {zone => $body->zone, empire_id => undef, },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $btype = $target->get_type;
     my ($throw, $reason) = check_bhg_neutralized($target);
     if ($throw > 0) {
@@ -1537,8 +1603,8 @@ sub bhg_random_size {
     my $target = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
         ->search(
             {zone => $body->zone, id => { '!=' => $body->id } },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $return;
     my $btype = $target->get_type;
     my ($throw, $reason) = check_bhg_neutralized($target);
@@ -1573,8 +1639,8 @@ sub bhg_random_resource {
     my $target = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
         ->search(
             {zone => $body->zone, empire_id => { '!=' => undef} },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $return;
     my $btype = $target->get_type;
     my ($throw, $reason) = check_bhg_neutralized($target);
@@ -1611,8 +1677,8 @@ sub bhg_random_fissure {
                 class     => { like => 'Lacuna::DB::Result::Map::Body::Planet::P%' },
                 usable_as_starter_enabled   => 0,
             },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $btype = $target->get_type;
     my $return = {
         id        => $target->id,
@@ -1659,9 +1725,11 @@ sub bhg_random_fissure {
             });
             my %already;
             my $max_alert = $level*5;
-            $max_alert = 100 if ($max_alert > 100);
-            $max_alert = 20 if ($max_alert < 20);
+            $max_alert = 120 if ($max_alert > 120);
+            $max_alert = 25 if ($max_alert < 25);
+            my $number_to_alert = 0;
             while (my $to_alert = $alert->next) {
+                last if ($number_to_alert++ > 25);
                 my $distance = $to_alert->get_column('distance');
                 last if ($distance > $max_alert);
                 my $eid = $to_alert->empire_id;
@@ -1691,8 +1759,8 @@ sub bhg_random_decor {
     my $target = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
         ->search(
             {zone => $body->zone },
-            {rows => 1, order_by => 'rand()' }
-        )->single;
+            { order_by => 'rand()' }
+        )->first;
     my $btype = $target->get_type;
     my $return = {
         id        => $target->id,
@@ -1736,6 +1804,7 @@ sub bhg_self_destruct {
     };
     $body->waste_stored(0);
     
+    # yes, ->level, not ->effective_level
     for (1..$building->level) {
         my ($placement) = 
             sort {
@@ -1771,16 +1840,16 @@ sub bhg_decor {
     );
     my $plant; my $max_level;
     if ($variance == -1) {
-        $plant = randint(1, int($building->level/10)+1);
+        $plant = randint(1, int($building->effective_level/10)+1);
         $max_level = 3;
     }
     elsif ($variance == 0) {
-        $plant = randint(1, int($building->level/5)+1);
+        $plant = randint(1, int($building->effective_level/5)+1);
         $max_level = int($building->level/5);
     }
     else {
-        $plant = randint(1, int($building->level/3)+1);
-        $max_level = $building->level;
+        $plant = randint(1, int($building->effective_level/3)+1);
+        $max_level = $building->effective_level;
     }
     $max_level = 30 if $max_level > 30;
     my $planted = 0;
@@ -1811,7 +1880,7 @@ sub bhg_decor {
             $body->empire->send_predefined_message(
                 tags     => ['Alert'],
                 filename => 'new_decor.txt',
-                params   => [$planted, $plural, $body->name],
+                params   => [$planted, $plural, $body->x, $body->y, $body->name],
             );
         }
         return {
@@ -1913,7 +1982,7 @@ sub bhg_resource {
     $body->empire->send_predefined_message(
         tags     => ['Alert'],
         filename => 'wormhole.txt',
-        params   => [$body->name, $waste_msg, $resource_msg],
+        params   => [$body->x, $body->y, $body->name, $waste_msg, $resource_msg],
     );
     $body->update({
         needs_recalc => 1,
@@ -1971,7 +2040,7 @@ sub bhg_change_type {
                 $body->empire->send_predefined_message(
                     tags     => ['Alert'],
                     filename => 'changed_type.txt',
-                    params   => [$body->name, $old_type, $new_type],
+                    params   => [$body->x, $body->y, $body->name, $old_type, $new_type],
                 );
             }
         }
@@ -2015,7 +2084,7 @@ sub bhg_size {
     my $btype = $body->get_type;
     if ($btype eq 'asteroid') {
         if ($variance == -1) {
-            $current_size -= randint(1, int($building->level/10)+1);
+            $current_size -= randint(1, int($building->effective_level/10)+1);
             $current_size = 1 if ($current_size < 1);
         }
         elsif ($variance == 1) {
@@ -2024,7 +2093,7 @@ sub bhg_size {
                 $current_size = 20 if ($current_size > 20);
             }
             else {
-                $current_size += int($building->level/5);
+                $current_size += int($building->effective_level/5);
                 $current_size = 10 if ($current_size > 10);
             }
         }
@@ -2039,7 +2108,7 @@ sub bhg_size {
     }
     elsif ($btype eq 'habitable planet') {
         if ($variance == -1) {
-            $current_size -= randint(1,$building->level);
+            $current_size -= randint(1,$building->effective_level);
             $current_size = 30 if ($current_size < 30);
         }
         elsif ($variance == 1) {
@@ -2048,7 +2117,7 @@ sub bhg_size {
                 $current_size = 75 if ($current_size > 75);
             }
             else {
-                $current_size += $building->level;
+                $current_size += $building->effective_level;
                 $current_size = 70 if ($current_size > 70);
             }
         }
@@ -2061,7 +2130,7 @@ sub bhg_size {
             $body->empire->send_predefined_message(
                 tags     => ['Alert'],
                 filename => 'changed_size.txt',
-                params   => [$body->name, $old_size, $current_size],
+                params   => [$body->x, $body->y, $body->name, $old_size, $current_size],
             );
         }
     }
@@ -2095,7 +2164,7 @@ sub bhg_size {
 sub bhg_tasks {
     my ($building) = @_;
     my $day_sec = 60 * 60 * 24;
-    my $blevel = $building->level == 0 ? 1 : $building->level;
+    my $blevel = $building->effective_level == 0 ? 1 : $building->effective_level;
     my $map_size = Lacuna->config->get('map_size');
     my $max_dist = sprintf "%0.2f",
         sqrt(($map_size->{x}[0] - $map_size->{x}[1])**2 + ($map_size->{y}[0] - $map_size->{y}[1])**2);
@@ -2111,7 +2180,7 @@ sub bhg_tasks {
             range        => 15 * $blevel,
             recovery     => int($day_sec * 90/$blevel),
             waste_cost   => 50_000_000,
-            base_fail    => 40 - $building->level, # 10% - 40%
+            base_fail    => 40 - $building->effective_level, # 10% - 40%
             side_chance  => 25,
             subsidy_mult => .75,
         },

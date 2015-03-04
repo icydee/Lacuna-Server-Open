@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 3.0906:
  - Mod: Damaged Gauntlet gives more granular infiltration time
  - Mod: Spies take a break after teleporting home
@@ -9,6 +10,83 @@
  - Mod: Option to send scows back home without any waste
  - Add: Add API to retrieve the highest Embassy in your empire
  - Add: POD timer is now on PCC with varying timer based on PCC level
+=======
+3.0909:
+ - Add: Enable Alliance chat rooms.
+ - Add: Admin UI to set alliance logo.
+ - Add: Admin UI display more info on bodies & stars.
+ - Fix: Only one notification per empire per star on probe detection.
+ - Add: Fleet Lite
+ - Mod: Sweepers adjusted for balance.
+ - Fix: Most buildings should no longer ignore uni level.
+ - Add: Overheating Parliament does damage.
+ - Fix: Buildings should no longer get stuck in upgrading state.
+ - Add: Allow login with "#<userid>".
+ - Mod: "#" no longer permitted as leading character in empire names.
+ - Mod: Propaganda doesn't count as often for missions.
+ - Mod: incoming ships list ordered correctly.
+ - Fix: Spies doing "Political Propaganda" and "Security Sweep" can be Assassinated/Abducted.
+ - Add: Essentia veins can be drained.
+ - Mod: Archaeology searches now take 5 hours, 50 minutes to complete. (thanks tmtowtdi!)
+ - Mod: Bleeders replicate.
+ - Mod: Disable chat for sitters.
+ - Add: pod_delay returned as part of PCC view
+ - Mod: Minimum flight time: 5 Minutes, Maximum is 2 months.
+ - Add: Build queue stats (size, len) returned as part of body status.
+ - UI : most IDs are available in the UI.
+ - Fix: If alliance member self destructs, station passed to leader.
+ - Fix: log real IPs in login log.
+ - Fix: Speed up N19 news display.
+ - Add: Added flip medal.
+ - Mod: Profanity filtering is more clear.
+ - Add: Shared admin notes on empires
+ - Mod: Oracle cooldown on BHG movement shortened to a flat 5 minutes.
+ - Mod: BHG Neutralization does not effect own alliance.
+ - Mod: BHG Can no longer swap with seized hostiles.
+ - Mod: Spies have fewer useless options.
+ - Mod: Invalid login attempts warns.
+ - Mod: Warnings about fissures shouldn't bother as many out of range.
+ - Mod: Split happiness cost calculation with SS & Colonies.
+ - Mod: SS Plans get cheaper packaging.
+
+3.0908:
+ - Mod: trash_messages_where now defaults to not returning deleted message IDs.
+ - Mod: Firing BFG now requires captcha.
+ - Fix: Jump Zone for BHG can now find needles in haystacks.
+ - UI : Reasons for not being able to use a BHG function now always displayed for every task.
+ - Fix: Instead of going via parliament, go via body or star to view_laws.  This allows everyone access to passed laws by a station.
+ - UI : No more nagging if you want to spend halls.
+
+3.0907:
+ - Add: Timer added to colony object preventing passage into Neutral Zone.
+ - Add: colonies and stations added to empire stat. planets kept to maintain backwards compatibility
+ - Fix: Fetching Spies no longer will send more spies.
+ - Add: Sabotage Defenses task added for spies.
+ - Add: Bugout task for spies added to get spies home.
+ - Mod: Replace cheap plastic parts on Space Station with steel.
+ - Mod: Slight tweaking of AI behaviours.
+ - Mod: Police Stations now have more thorough security on incoming visitors.
+
+3.0906:
+ - Fix: Some fixes to the send_ship_types API call.
+ - Fix: Don't list platform plans for splitting in Dillon Forge.
+ - Fix: Disable self-destruct works again.
+ - Fix: Building/upgrade on SS has all buildings in parallel.
+ - Mod: Damaged Gauntlet gives more granular infiltration time.
+ - Mod: Spies take a break after teleporting home.
+ - Mod: Improved unsustainable message to make it clearer.
+ - Mod: Observatory now displays 30 rows not 25.
+ - Mod: Option to send scows back home without any waste.
+ - Mod: Update ChiselChat.
+ - Mod: Plan list sorting now done more naturally.
+ - Mod: Improve message handling speed (deleting, archiving).
+ - Mod: Spy lists in intel min, merc guild, send-spy tab all use the same ordering.
+ - Mod: Planets can't jump into the neutral zone when it has too many ships in transit.
+ - Add: mass_abandon_excavator and mass_abandon_platform APIs.
+ - Add: Inbox API call added: trash_messages_where.
+ - Add: Add Highest Embassy in your empire to returned get_status.
+ - Add: POD timer is now on PCC with varying timer based on PCC level.
+>>>>>>> 3fa30152e1f874afe496b49f612c850bc7ad19a1
 
 3.0905:
  - Mod: Replaced Envolve chat with ChiselChat

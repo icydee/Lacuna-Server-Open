@@ -66,15 +66,14 @@ sub equivalent_halls {
 sub _forge_tasks {
     my ($self, $building) = @_;
 
-    my $building_level = $building->level ? $building->level : 1;
+    my $building_level = $building->effective_level ? $building->effective_level : 1;
     my $body = $building->body;
-
-    my $effective_level = ($building_level > $building->body->empire->university_level + 1) ?
-                           $building->body->empire->university_level + 1 : $building_level;
 
     my @split_plans;
 PLAN:
     for my $plan (@{$body->plan_cache}) {
+        # cannot split platform plans
+        next PLAN if $plan->class =~ /Platform$/;
         # Can only split plans with recipes
         my $glyphs = Lacuna::DB::Result::Plan->get_glyph_recipe($plan->class);
         next PLAN if not $glyphs;
@@ -91,8 +90,8 @@ PLAN:
             level               => $plan->level,
             extra_build_level   => $plan->extra_build_level,
             quantity            => $plan->quantity,
-            fail_chance         => 100 - ($effective_level * 3),
-            reset_seconds       => int(($num_glyphs * $halls * 30 * 3600) / ($effective_level * 4)),
+            fail_chance         => 100 - ($building_level * 3),
+            reset_seconds       => int(($num_glyphs * $halls * 30 * 3600) / ($building_level * 4)),
         };
     }
 
@@ -101,7 +100,7 @@ PLAN:
     my @make_plans;
     foreach my $plan (@plans) {
         # It takes 2 level 1 plans for each level we are constructing.
-        my $max_level = min(int($plan->quantity / 2), $effective_level);
+        my $max_level = min(int($plan->quantity / 2), $building_level);
         if ($max_level >= 2) {
             my ($class) = $plan->class =~ m/Lacuna::DB::Result::Building::(.*)$/;
             push @make_plans, {

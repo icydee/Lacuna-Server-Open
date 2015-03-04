@@ -65,7 +65,7 @@ sub rename {
     my $empire = $self->get_empire_by_session($session_id);
     my $body = $self->get_body($empire, $body_id);
     if ($body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
-        unless ($body->parliament->level >= 3) {
+        unless ($body->parliament->effective_level >= 3) {
             confess [1013, 'You need to have a level 3 Parliament to rename a station.'];
         }
         my $proposition = Lacuna->db->resultset('Lacuna::DB::Result::Propositions')->new({
@@ -444,7 +444,7 @@ sub get_buildable {
     my $dev = $body->development;
     my $max_items_in_build_queue = 1;
     if (defined $dev) {
-        $max_items_in_build_queue += $dev->level;
+        $max_items_in_build_queue += $dev->effective_level;
     }
     my $items_in_build_queue = scalar @{$body->builds};
     
@@ -510,9 +510,35 @@ sub get_buildable {
 
     return {buildable=>\%out, build_queue => { max => $max_items_in_build_queue, current => $items_in_build_queue}, status=>$self->format_status($empire, $body)};
 }
+sub view_laws {
+    my ($self, $session_id, $body_id) = @_;
+    my $empire = $self->get_empire_by_session($session_id);
+    my $body = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
+                ->find($body_id);
+    if ($body and $body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        my @out;
+        my $laws = $body->laws;
+        while (my $law = $laws->next) {
+            push @out, $law->get_status($empire);
+        }
+        return {
+            status          => $self->format_status($empire, $body),
+            laws            => \@out,
+        };
+    }
+    else {
+        return {
+            status => $self->format_status($empire, $body),
+            laws   => [ { name => "Not a Station",
+                          descripition => "Not a Station",
+                          date_enacted => "00 00 0000 00:00:00 +0000",
+                          id => 0
+                        } ],
+        },
+    }
+}
 
-
-__PACKAGE__->register_rpc_method_names(qw(abandon rename get_buildings get_buildable get_status get_body_status repair_list rearrange_buildings));
+__PACKAGE__->register_rpc_method_names(qw(abandon rename get_buildings get_buildable get_status get_body_status repair_list rearrange_buildings view_laws));
 
 no Moose;
 __PACKAGE__->meta->make_immutable;

@@ -1,11 +1,23 @@
+<<<<<<< HEAD
 var/www/public/api
 bin/setup/server/*.gz
 bin/setup/server/*.rpm
 bin/setup/server/*/
 
+=======
+bin/schedule_building.pid
+bin/schedule_ship_arrival.pid
+bin/setup/server/*.gz
+bin/setup/server/*.rpm
+bin/setup/server/*/
+>>>>>>> 3fa30152e1f874afe496b49f612c850bc7ad19a1
 etc/lacuna.conf
 etc/log4perl.conf
 etc/mime.types
 etc/nginx.conf
 var/www/public/index.html
+<<<<<<< HEAD
 
+=======
+var/www/public/api
+>>>>>>> 3fa30152e1f874afe496b49f612c850bc7ad19a1

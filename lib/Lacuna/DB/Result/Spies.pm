@@ -141,16 +141,22 @@ sub offensive_assignments {
             recovery    => $self->recovery_time(60 * 60 * 1),
             skill       => 'intel',
         },
-        {
-            task        =>'Hack Network 19',
-            recovery    => $self->recovery_time(60 * 60 * 1),
-            skill       => 'politics',
-        },
-        {
-            task        =>'Sabotage Probes',
-            recovery    => $self->recovery_time(60 * 60 * 4),
-            skill       => 'mayhem',
-        },
+    );
+    unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        push @assignments, (
+            {
+                task        =>'Hack Network 19', # Non-SS
+                recovery    => $self->recovery_time(60 * 60 * 1),
+                skill       => 'politics',
+            },
+            {
+                task        =>'Sabotage Probes', # Non-SS
+                recovery    => $self->recovery_time(60 * 60 * 4),
+                skill       => 'mayhem',
+            },
+        );
+    }
+    push @assignments, (
         {
             task        =>'Rescue Comrades',
             recovery    => $self->recovery_time(60 * 60 * 4),
@@ -161,21 +167,38 @@ sub offensive_assignments {
             recovery    => $self->recovery_time(60 * 60 * 6),
             skill       => 'mayhem',
         },
-        {
-            task        =>'Appropriate Resources',
-            recovery    => $self->recovery_time(60 * 60 * 6),
-            skill       => 'theft',
-        },
+    );
+    unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        push @assignments, (
+            {
+                task        =>'Appropriate Resources', # Non-SS
+                recovery    => $self->recovery_time(60 * 60 * 6),
+                skill       => 'theft',
+            },
+        );
+    }
+    push @assignments, (
         {
             task        =>'Sabotage Infrastructure',
             recovery    => $self->recovery_time(60 * 60 * 8),
             skill       => 'mayhem',
         },
         {
-            task        =>'Sabotage BHG',
-            recovery    => 0,
+            task        =>'Sabotage Defenses',
+            recovery    => $self->recovery_time(60 * 60 * 10),
             skill       => 'mayhem',
         },
+    );
+    unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        push @assignments, (
+            {
+                task        =>'Sabotage BHG', # Non-SS
+                recovery    => 0,
+                skill       => 'mayhem',
+            },
+        );
+    }
+    push @assignments, (
         {
             task        =>'Assassinate Operatives',
             recovery    => $self->recovery_time(60 * 60 * 8),
@@ -191,12 +214,16 @@ sub offensive_assignments {
             recovery    => $self->recovery_time(60 * 60 * 12),
             skill       => 'theft',
         },
-        {
-            task        =>'Incite Rebellion',
-            recovery    => $self->recovery_time(60 * 60 * 18),
-            skill       => 'politics',
-        },
     );
+    unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        push @assignments, (
+            {
+                task        =>'Incite Rebellion', # Non-SS
+                recovery    => $self->recovery_time(60 * 60 * 18),
+                skill       => 'politics',
+            },
+        );
+    }
     if (eval{$self->can_conduct_advanced_missions} or $self->on_body->empire_id == -4) {
         push @assignments, (
             {
@@ -204,12 +231,16 @@ sub offensive_assignments {
                 recovery    => $self->recovery_time(60 * 60 * 18),
                 skill       => 'theft',
             },
-            {
-                task        =>'Incite Insurrection',
-                recovery    => $self->recovery_time(60 * 60 * 24),
-                skill       => 'politics',
-            },
         );    
+        unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+            push @assignments, (
+                {
+                    task        =>'Incite Insurrection', # Non-SS
+                    recovery    => $self->recovery_time(60 * 60 * 24),
+                    skill       => 'politics',
+                },
+            );    
+        }
     }
     return @assignments;
 }
@@ -229,46 +260,70 @@ sub defensive_assignments {
         },
     );
     if ($self->on_body->empire_id eq $self->empire_id) {
-        push @assignments, (
+        if ($self->on_body->get_building_of_class('Lacuna::DB::Result::Building::IntelTraining')) {
+            push @assignments, (
             {
                 task        =>'Intel Training',
                 recovery    => 0,
                 skill       => '*',
-            },
+            });
+        }
+        if ($self->on_body->get_building_of_class('Lacuna::DB::Result::Building::MayhemTraining')) {
+            push @assignments, (
             {
                 task        =>'Mayhem Training',
                 recovery    => 0,
                 skill       => '*',
-            },
+            });
+        }
+        if ($self->on_body->get_building_of_class('Lacuna::DB::Result::Building::PoliticsTraining')) {
+            push @assignments, (
             {
                 task        =>'Politics Training',
                 recovery    => 0,
                 skill       => '*',
-            },
+            });
+        }
+        if ($self->on_body->get_building_of_class('Lacuna::DB::Result::Building::TheftTraining')) {
+            push @assignments, (
             {
                 task        =>'Theft Training',
                 recovery    => 0,
                 skill       => '*',
-            },
-            {
-                task        =>'Political Propaganda',
-                recovery    => 0,
-                skill       => 'politics',
-            },
-        );    
+            });
+        }
+        unless ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+            push @assignments, (
+                {
+                    task        =>'Political Propaganda',
+                    recovery    => 0,
+                    skill       => 'politics',
+                },
+            );    
+        }
     }
     return @assignments;
 }
 
 sub neutral_assignments {
     my $self = shift;
-    return (
+    my @assignments = (
         {
             task        => 'Idle',
             recovery    => 0,
             skill       => 'none',
         },
     );
+    if ($self->on_body->id ne $self->from_body_id) {
+        push @assignments, (
+            {
+                task        =>'Bugout',
+                recovery    => 0,
+                skill       => 'intel',
+            },
+        );    
+    }
+    return @assignments;
 }
 
 sub get_possible_assignments {
@@ -401,7 +456,7 @@ sub is_available {
             $tr_skill = "theft_xp";
         }
         if ($train_bld) {
-            my $max_points  = 350 + $train_bld->level * 75;
+            my $max_points  = 350 + $train_bld->effective_level * 75;
             if ($self->$tr_skill >= $max_points) {
                 $self->task('Idle');
                 $self->update_level;
@@ -416,7 +471,7 @@ sub is_available {
                                                                   on_body_id => $train_bld->body_id,
                                                                   empire_id => $train_bld->body->empire_id})->count;
                 my $boost = (time < $self->empire->spy_training_boost->epoch) ? 1.5 : 1;
-                my $points_hour = $train_bld->level * $boost;
+                my $points_hour = $train_bld->effective_level * $boost;
                 my $points_to_add = 0;
                 if ($points_hour > 0 and $train_cnt > 0) {
                     $points_to_add = int( ($points_hour * $minutes)/60/$train_cnt);
@@ -445,9 +500,9 @@ sub is_available {
         my $now = DateTime->now;
         my $pol_time = $now->subtract_datetime_absolute($self->started_assignment);
         my $minutes = int($pol_time->seconds/60);
-        my $mission_count_add = int($minutes/240);
+        my $mission_count_add = int($minutes/360);
         if ($mission_count_add > 0) {
-            my $remain_min = $minutes - ($mission_count_add * 240);
+            my $remain_min = $minutes - ($mission_count_add * 360);
             $self->started_assignment($now->clone->subtract(minutes => $remain_min)); # Put time at now with remainder
             my $fskill = $self->politics_xp + $mission_count_add;
             $fskill = 2600 if ($fskill > 2600);
@@ -466,11 +521,13 @@ sub is_available {
     elsif (time > $self->available_on->epoch) {
         if ($task eq 'Debriefing') {
             $self->task('Counter Espionage');
+            $self->started_assignment(DateTime->now);
             $self->update;
             return 1;
         }
         elsif ($task eq 'Unconscious') {
             $self->task('Idle');
+            $self->started_assignment(DateTime->now);
             $self->update;
             $self->empire->send_predefined_message(
                 tags        => ['Intelligence'],
@@ -484,9 +541,23 @@ sub is_available {
                 $self->on_body->update;
                 if (!$self->empire->alliance_id || $self->empire->alliance_id != $self->on_body->empire->alliance_id ) {
                     my $seconds = 3600;
+<<<<<<< HEAD
                     my $gauntlet = $self->on_body->get_building_of_class('Lacuna::DB::Result::Building::Permanent::GratchsGauntlet');
                     if (defined $gauntlet) {
                         $seconds += int(3600 * (($gauntlet->level * 3 * $gauntlet->efficiency)/100 + 1));
+=======
+                    my $building = 'Permanent::GratchsGauntlet';
+                    my $uni_level = $self->on_body->empire->university_level;
+                    if ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+                        $building = 'Module::PoliceStation';
+                        $uni_level = 30;  #This way, uni level doesn't matter with SS
+                    }
+                    my $gauntlet = $self->on_body->get_building_of_class('Lacuna::DB::Result::Building::'.$building);
+                    if (defined $gauntlet) {
+                        my $level = $gauntlet->effective_level;
+                        $level = $uni_level if ($level > $uni_level);
+                        $seconds += int(3600 * (($level * 3 * $gauntlet->efficiency)/100 + 1));
+>>>>>>> 3fa30152e1f874afe496b49f612c850bc7ad19a1
                     }
 
                     my $infiltration_time = $self->available_on->clone->add(seconds => $seconds);
@@ -521,6 +592,7 @@ use constant assignments => (
     'Rescue Comrades',
     'Sabotage Resources',
     'Appropriate Resources',
+    'Sabotage Defenses',
     'Sabotage Infrastructure',
     'Sabotage BHG',
     'Assassinate Operatives',
@@ -529,6 +601,7 @@ use constant assignments => (
     'Incite Rebellion',
     'Appropriate Technology',
     'Incite Insurrection',
+    'Bugout',
     'Intel Training',
     'Mayhem Training',
     'Politics Training',
@@ -610,6 +683,9 @@ sub assign {
     elsif ($assignment eq 'Security Sweep') {
         return $self->run_security_sweep($mission);
     }
+    elsif ($assignment eq 'Bugout') {
+        return $self->bugout($mission);
+    }
     else {
         return $self->run_mission($mission);
     }
@@ -674,6 +750,7 @@ my %outcomes = (
     'Appropriate Technology'        => 'appropriate_tech',
     'Sabotage Probes'               => 'sabotage_probes',
     'Rescue Comrades'               => 'rescue_comrades',
+    'Sabotage Defenses'             => 'sabotage_defenses',
     'Sabotage Resources'            => 'sabotage_resources',
     'Appropriate Resources'         => 'appropriate_resources',
     'Assassinate Operatives'        => 'assassinate_operatives',
@@ -706,8 +783,8 @@ has home_field_advantage => (
         }
         my $hq = $body->get_building_of_class('Lacuna::DB::Result::Building::'.$building);
         if (defined $hq) {
-            my $bld_level = ($uni_level < $hq->level) ? $uni_level : $hq->level;
-            return $bld_level * $hq->efficiency / $div;
+            my $bld_level = $hq->effective_level;
+            return $bld_level * $hq->effective_efficiency / $div;
         }
         else {
             return 0;
@@ -733,13 +810,16 @@ sub run_mission {
     my $mission_skill = $mission->{skill}.'_xp';
     my $power = $self->offense + $self->$mission_skill;
     my $toughness = 0;
-    my $defender = $self->get_defender;
+    my $defender = $self->get_defender($mission);
     my $hfa = 0;
     if (defined $defender) {
         $toughness = $defender->defense + $defender->$mission_skill;
         $hfa = $defender->home_field_advantage;
     }
     my $breakthru = ($power - $toughness - $hfa) + $self->luck;
+
+    $self->from_body->add_to_neutral_entry(60 * 24 * 60 * 60);
+    $self->on_body->subtract_from_neutral_entry(int($mission->{recovery}/2));
     
     $breakthru = ( randint(0,99) < 5) ? $breakthru * -1 : $breakthru;
     # handle outcomes and xp
@@ -854,7 +934,7 @@ sub run_security_sweep {
   }
   my $breakthru = ($power - $toughness + $self->home_field_advantage) + $self->luck;
   $breakthru = ( randint(0,99) < 5) ? $breakthru * -1 : $breakthru;
-    
+
   # handle outcomes and xp
   my $out;
   if ($breakthru < 0) {
@@ -904,7 +984,6 @@ sub run_security_sweep {
     }
     else {
       $message_id = $self->spy_report(@_);
-#      $message_id = $self->no_target->id;
     }
     $self->offense_mission_successes( $self->offense_mission_successes + 1 );
     my $def_xp = $self->$mission_skill + 10;
@@ -930,6 +1009,87 @@ sub run_security_sweep {
   return $out;
 }
 
+sub bugout {
+    my ($self, $mission) = @_;
+
+    if (!$self->empire->alliance_id || $self->empire->alliance_id != $self->on_body->empire->alliance_id ) {
+        my $power = $self->offense + $self->intel_xp;
+        my $toughness = 0;
+        my $defender = $self->get_defender($mission);
+        my $hfa = 0;
+        if (defined $defender) {
+            $toughness = $defender->defense + $defender->intel_xp;
+            $hfa = $defender->home_field_advantage;
+        }
+        my $breakthru = ($power - $toughness - $hfa) + $self->luck;
+
+       $breakthru = ( randint(0,99) < 5) ? $breakthru * -1 : $breakthru;
+       if ($breakthru < -2000) {
+           $self->on_body->add_news(50,
+                                  'An enemy agent narrowly got away from the security forces of %s.',
+                                   $self->on_body->name);
+           $self->on_body->empire->send_predefined_message(
+               tags        => ['Spies','Alert'],
+               filename    => 'unauthorized_launch_tracked.txt',
+               params      => [$self->on_body->id, $self->on_body->name,
+                               $self->from_body->x, $self->from_body->y, $self->from_body->name],
+           );
+#Narrow escape home
+       }
+       elsif ($breakthru > 500) {
+#Clean escape
+           $self->on_body->add_news(10,
+                                  'An unauthorized ship launching happened on %s.',
+                                   $self->on_body->name);
+       }
+       else {
+           $self->on_body->add_news(50,
+                                  'An unauthorized ship launching happened on %s.',
+                                   $self->on_body->name);
+           $self->on_body->empire->send_predefined_message(
+               tags        => ['Spies','Alert'],
+               filename    => 'unauthorized_launch.txt',
+               params      => [$self->on_body->id, $self->on_body->name],
+           );
+       }
+       $self->empire->send_predefined_message(
+           tags        => ['Intelligence'],
+           filename    => 'on_way_home.txt',
+           params      => [ 
+                            $self->on_body->empire->id,
+                            $self->on_body->empire->name,
+                            $self->on_body->x,
+                            $self->on_body->y,
+                            $self->on_body->name,
+                            $self->name,
+                            $self->from_body->id,
+                            $self->from_body->name],
+           );
+    }
+    my $spy_pod = Lacuna->db->resultset('Ships')->new({
+                    body_id         => $self->from_body_id,
+                    type            => 'spy_pod',
+                    name            => "Bugout",
+                })->insert;
+    $spy_pod->date_available(DateTime->now);
+    $spy_pod->speed(1000+ ($self->level*100));
+    $spy_pod->send(
+        target      => $self->on_body,
+        direction   => 'in',
+        payload     => { spies => [ $self->id ] }
+    );
+    $self->available_on($spy_pod->date_available);
+    $self->on_body_id($self->from_body_id);
+    $self->task('Travelling');
+    $self->started_assignment(DateTime->now);
+    $self->update;
+    my $out = { result => 'Success',
+                reason => random_element(['I\'m out of here!',
+                                          'Exit, stage right.',
+                                          'Exit, stage left.']) };
+    return $out;
+}
+
 sub get_defender {
     my ($self, $mission) = @_;
 
@@ -942,7 +1102,7 @@ sub get_defender {
        $member_ids[0] = $self->empire->id;
     }
     my @tasks = 'Counter Espionage';
-    if ($mission eq "Abduct Operatives" or $mission eq "Assassinate Operatives") {
+    if ($mission->{task} eq "Abduct Operatives" or $mission->{task} eq "Assassinate Operatives") {
         push @tasks, "Security Sweep", "Political Propaganda";
     }
 
@@ -952,9 +1112,9 @@ sub get_defender {
         ->search(
             { on_body_id  => $self->on_body_id,
               task => { 'in' => \@tasks },
-              empire_id => { 'not_in' => \@member_ids } },
-            { rows => 1, order_by => 'rand()' }
-        )->single;
+              empire_id => { 'not in' => \@member_ids } },
+            { order_by => 'rand()' }
+        )->first;
     if (defined $defender) {
         $defender->on_body($self->on_body);
         weaken($defender->{_relationship_data}{on_body});
@@ -982,9 +1142,9 @@ sub get_attacker {
         ->search(
             { on_body_id  => $self->on_body_id,
               task => {  in => \@tasks }, empire_id => { 'not in' => \@member_ids } },
-            { rows => 1, order_by => 'rand()' }
+            { order_by => 'rand()' }
         )
-        ->single;
+        ->first;
     if (defined $attacker) {
         $attacker->on_body($self->on_body);
         weaken($attacker->{_relationship_data}{on_body});
@@ -1098,6 +1258,7 @@ sub go_to_jail {
     $self->task('Captured');
     $self->started_assignment(DateTime->now);
     $self->times_captured( $self->times_captured + 1 );
+    $self->update;
     return $self->empire->send_predefined_message(
         tags        => ['Spies','Alert'],
         filename    => 'spy_captured.txt',
@@ -1379,12 +1540,13 @@ sub kill_defending_spy {
 
 sub gather_resource_intel {
     my $self = shift;
-    given (randint(1,5)) {
-        when (1) { return $self->ship_report(@_) }
-        when (2) { return $self->travel_report(@_) }
-        when (3) { return $self->economic_report(@_) }
-        when (4) { return $self->supply_report(@_) }
-        when (5) { return $self->knock_defender_unconscious(@_) }
+    my $top_choice = $self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station') ? 3 : 5;
+    given (randint(1,$top_choice)) {
+        when (1) { return $self->economic_report(@_) }
+        when (2) { return $self->supply_report(@_) }
+        when (3) { return $self->knock_defender_unconscious(@_) }
+        when (4) { return $self->ship_report(@_) } # Non-SS
+        when (5) { return $self->travel_report(@_) } # Non-SS
     }
 }
 
@@ -1416,10 +1578,11 @@ sub gather_empire_intel_loss {
 
 sub gather_operative_intel {
     my $self = shift;
-    given (randint(1,3)) {
+    given (randint(1,4)) {
         when (1) { return $self->false_interrogation_report(@_) }
         when (2) { return $self->spy_report(@_) }
-        when (3) { return $self->knock_defender_unconscious(@_) }
+        when (3) { return $self->spy_report(@_) }
+        when (4) { return $self->knock_defender_unconscious(@_) }
     }
 }
 
@@ -1533,18 +1696,41 @@ sub abduct_operatives_loss {
     }
 }
 
+sub sabotage_defenses {
+    my $self = shift;
+    my $top_choice = $self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station') ? 3 : 4;
+    given (randint(1,$top_choice)) {
+        when (1) { return $self->knock_defender_unconscious(@_) }
+        when (2) { return $self->shut_down_defenses(@_) }
+        when (3) { return $self->shut_down_defenses(@_) }
+        when (4) { return $self->destroy_defense_ship(@_) } # Non-SS
+#        when (4) { return $self->destroy_incoming_supply(@_) }
+    }
+}
+
+sub sabotage_defenses_loss {
+    my $self = shift;
+    given (randint(1,3)) {
+        when (1) { return $self->capture_saboteur(@_) }
+        when (2) { return $self->thwart_saboteur(@_) }
+        when (3) { return $self->knock_attacker_unconscious(@_) }
+    }
+}
+
 sub sabotage_resources {
     my $self = shift;
-    given (randint(1,9)) {
-        when (1) { return $self->destroy_mining_ship(@_) }
-        when (2) { return $self->destroy_ship(@_) }
-        when (3) { return $self->kill_contact_with_mining_platform(@_) }
-        when (4) { return $self->knock_defender_unconscious(@_) }
-        when (5) { return $self->destroy_resources(@_) }
-        when (6) { return $self->destroy_plan(@_) }
-        when (7) { return $self->destroy_glyph(@_) }
-        when (8) { return $self->destroy_chain_ship(@_) }
-        when (9) { return $self->destroy_excavator(@_) }
+    my $top_choice = $self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station') ? 4 : 9;
+    given (randint(1,$top_choice)) {
+        when (1) { return $self->knock_defender_unconscious(@_) }
+        when (2) { return $self->destroy_resources(@_) }
+        when (3) { return $self->destroy_plan(@_) }
+        when (4) { return $self->destroy_glyph(@_) }
+        when (5) { return $self->kill_contact_with_mining_platform(@_) } # Non-SS
+        when (6) { return $self->destroy_ship(@_) } # Non-SS
+        when (7) { return $self->destroy_mining_ship(@_) } # Non-SS
+        when (8) { return $self->destroy_out_chain_ship(@_) } # Non-SS
+        when (9) { return $self->destroy_excavator(@_) } # Non-SS
+#        when (5) { return $self->destroy_incoming_supply(@_) }
     }
 }
 
@@ -1558,7 +1744,7 @@ sub sabotage_resources_loss {
     }
 }
 
-sub appropriate_resources {
+sub appropriate_resources { # Non-SS
     my $self = shift;
     given (randint(1,6)) {
         when (1) { return $self->steal_ships(@_) }
@@ -1691,10 +1877,10 @@ sub can_conduct_advanced_missions {
         confess [1010, 'You cannot attack your alliance mates.'];
     }
     my $ranks = Lacuna->db->resultset('Log::Empire');
-    my $defender_rank = $ranks->search( { empire_id => $self->on_body->empire_id },
-                                        {rows => 1})->get_column('empire_size_rank')->single;
+    my $defender_rank = $ranks->search( { empire_id => $self->on_body->empire_id }
+                                        )->get_column('empire_size_rank')->first;
     my $attacker_rank = $ranks->search( {empire_id => $self->empire_id },
-                                        {rows => 1})->get_column('empire_size_rank')->single;
+                                        )->get_column('empire_size_rank')->first;
     unless ($attacker_rank + 100 > $defender_rank ) { # remember that the rank is inverted 1 is higher than 2.
         confess [1010, 'This empire is more than 100 away from you in empire rank, and is therefore immune to this attack.'];
     }
@@ -1705,9 +1891,9 @@ sub can_conduct_advanced_missions {
 
 sub steal_planet {
     my ($self, $defender) = @_;
-    my $next_colony_cost = $self->empire->next_colony_cost;
+    my $next_colony_cost = $self->empire->next_colony_cost("spy");
     my $planet_happiness = $self->on_body->happiness;
-    my $chance = abs($planet_happiness * 100) / $next_colony_cost;
+    my $chance = int(abs($planet_happiness * 100) / $next_colony_cost);
     my $failure = randint(1,100) > $chance;
     if ($planet_happiness > 0 || $failure) { # lose
         $self->on_body->empire->send_predefined_message(
@@ -1721,10 +1907,14 @@ sub steal_planet {
               params      => [$self->on_body->x,
                               $self->on_body->y,
                               $self->on_body->name,
+                              commify(abs($planet_happiness)),
+                              commify($next_colony_cost),
+                              $chance,
                               $self->format_from],
         )->id;
     }
     else { # win
+        $self->on_body->add_to_neutral_entry(24 * 60 * 60);
         $self->on_body->empire->send_predefined_message(
                 tags        => ['Spies','Alert'],
                 filename    => 'lost_planet_to_insurrection.txt',
@@ -1733,6 +1923,7 @@ sub steal_planet {
                                 $self->on_body->y,
                                 $self->on_body->name],
         );
+        $self->empire->add_medal('flipped');
         $self->on_body->add_news(100,
                                   'Led by %s, the citizens of %s have overthrown %s!',
                                    $self->name,
@@ -1836,9 +2027,13 @@ sub steal_planet {
                (grep { $ship->type eq $_ }
                      @{[ 'colony_ship',
                          'short_range_colony_ship',
+                         'space_station',
                        ]})) {
             # Colony ships show from capitol.
             $ship->body_id($defender_capitol_id);
+            my $payload = $ship->payload;
+            $payload->{colony_cost} = 0;
+            $ship->payload($payload);
             $ship->update;
         }
         else {
@@ -2144,8 +2339,8 @@ sub abduct_operative {
                               foreign_body_id => $self->on_body->id,
                               task => 'Orbiting',
                               type => 'spy_shuttle'},
-                            { rows => 1, order_by => 'rand()' }
-                          )->single;
+                            { order_by => 'rand()' }
+                          )->first;
     unless (defined($ship)) {
         foreach my $type (SHIP_TYPES) {
             my $ship = $ships->new({type => $type});
@@ -2157,8 +2352,8 @@ sub abduct_operative {
             {body_id => $self->on_body->id,
              task => 'Docked',
              hold_size => { '>=' => 700 }, type => {'in' => \@types}},
-            { rows => 1, order_by => 'rand()' }
-          )->single;
+            { order_by => 'rand()' }
+          )->first;
     }
     return $self->ship_not_found->id unless (defined $ship);
     return $self->no_contact->id unless (defined $defender);
@@ -2218,10 +2413,7 @@ sub thwart_rebel {
 sub destroy_infrastructure {
     my ($self, $defender) = @_;
 
-    my ($building) = sort {
-            rand() <=> rand()
-        }
-        grep {
+    my ($building) = shuffle grep {
             $_->efficiency > 0 and
             $_->class ne 'Lacuna::DB::Result::Building::PlanetaryCommand' and
             $_->class ne 'Lacuna::DB::Result::Building::Module::StationCommand' and
@@ -2229,7 +2421,6 @@ sub destroy_infrastructure {
             $_->class ne 'Lacuna::DB::Result::Building::DeployedBleeder'
         }
         @{$self->on_body->building_cache};
-# Future: Multi destruction (grab a few buildings)
     return $self->building_not_found->id unless defined $building;
 
     $self->on_body->empire->send_predefined_message(
@@ -2242,8 +2433,7 @@ sub destroy_infrastructure {
                              '%s was rocked today when the %s exploded, sending people scrambling for their lives.',
                              $self->on_body->name,
                              $building->name);
-    $building->spend_efficiency($self->level)->update;
-    return $self->empire->send_predefined_message(
+    my $id = $self->empire->send_predefined_message(
         tags        => ['Intelligence'],
         filename    => 'sabotage_report.txt',
         params      => ['level '.($building->level).' '.$building->name,
@@ -2254,14 +2444,62 @@ sub destroy_infrastructure {
                         $self->from_body->id,
                         $self->from_body->name],
     )->id;
+    if ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        my $dam = int($self->level/4);
+        my $eff = $building->efficiency;
+        $building->spend_efficiency($dam);
+        $building->update if $dam < $eff;
+    }
+    else {
+        $building->spend_efficiency($self->level)->update;
+    }
+    return $id;
+}
+
+sub destroy_defense_ship {
+    my ($self, $defender) = @_;
+    my $ship = $self->on_body->ships->search(
+        {task => 'Docked',
+         type => {'in' => ['sweeper',
+                           'fighter',
+                           'drone',
+                          ]},
+        },
+        { order_by => 'rand()' }
+        )->first;
+
+    return $self->ship_not_found->id unless (defined $ship);
+    $self->things_destroyed( $self->things_destroyed + 1 );
+    $self->on_body->empire->send_predefined_message(
+        tags        => ['Spies','Alert'],
+        filename    => 'ship_blew_up_at_port.txt',
+        params      => [$ship->type_formatted, $self->on_body->id, $self->on_body->name],
+    );
+    my $message = $self->empire->send_predefined_message(
+        tags        => ['Intelligence'],
+        filename    => 'sabotage_report.txt',
+        params      => [$ship->type_formatted,
+                        $self->on_body->x,
+                        $self->on_body->y,
+                        $self->on_body->name,
+                        $self->name,
+                        $self->from_body->id,
+                        $self->from_body->name],
+    );
+    $self->on_body->add_news(90,
+                             'Today officials on %s are investigating the explosion of a %s at the Space Port.', 
+                             $self->on_body->name, 
+                             $ship->type_formatted);
+    $ship->delete;
+    return $message->id;
 }
 
 sub destroy_ship {
     my ($self, $defender) = @_;
     my $ship = $self->on_body->ships->search(
         {task => 'Docked'},
-        {rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless (defined $ship);
     $self->things_destroyed( $self->things_destroyed + 1 );
     $self->on_body->empire->send_predefined_message(
@@ -2328,7 +2566,7 @@ sub destroy_plan {
 
 sub destroy_glyph {
     my ($self, $defender) = @_;
-    my $glyph = $self->on_body->glyph->search(undef, {rows => 1, order_by => 'rand()'})->single;
+    my $glyph = $self->on_body->glyph->search(undef, { order_by => 'rand()'})->first;
     return $self->mission_objective_not_found('glyph')->id unless defined $glyph;
     $self->things_destroyed( $self->things_destroyed + 1 );
     my $stolen = $glyph->type.' glyph';
@@ -2385,13 +2623,13 @@ sub destroy_resources {
     return $message->id;
 }
 
-sub destroy_chain_ship {
+sub destroy_out_chain_ship {
     my ($self, $defender) = @_;
     my $ship = Lacuna->db->resultset('Ships')->search(
         {body_id => $self->on_body->id,
          task => {'in' => ['Supply Chain', 'Waste Chain'] }},
-        { rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless $ship;
     my $stype = "supply chain";
     if ($ship->task eq "Waste Chain") {
@@ -2429,8 +2667,8 @@ sub destroy_mining_ship {
     return $self->building_not_found->id unless defined $ministry;
     my $ship = Lacuna->db->resultset('Ships')->search(
         {body_id => $self->on_body->id, task => 'Mining'},
-        { rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless $ship;
     $ship->delete;
     $ministry->recalc_ore_production;
@@ -2502,8 +2740,8 @@ sub steal_resources {
                            'hulk_huge',
                            'dory',
                            'barge']}},
-        { rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless defined $ship;
     my $space = $ship->hold_size;
     my @types = shuffle (FOOD_TYPES, ORE_TYPES);
@@ -2582,8 +2820,8 @@ sub steal_glyph {
                            'hulk_fast',
                            'hulk_huge',
                            'barge']}},
-        { rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless defined $ship;
 
     my @glyphs = $on_body->glyph;
@@ -2639,8 +2877,8 @@ sub steal_ships {
     }
     my $ship = $ships->search(
         {body_id => $self->on_body->id, task => 'Docked', type => {'in' => \@types}},
-        { rows => 1, order_by => 'rand()' }
-        )->single;
+        { order_by => 'rand()' }
+        )->first;
     return $self->ship_not_found->id unless (defined $ship);
     $ship->body($self->from_body);
     weaken($ship->{_relationship_data}{body});
@@ -2673,10 +2911,7 @@ sub steal_ships {
 sub steal_building {
     my ($self, $defender) = @_;
     my $on_body = $self->on_body;
-    my ($building) = sort {
-            rand() <=> rand()
-        }
-        grep {
+    my ($building) = shuffle grep {
             ($_->level > 1) and
             ($_->class ne 'Lacuna::DB::Result::Building::Permanent::EssentiaVein') and
             ($_->class ne 'Lacuna::DB::Result::Building::Permanent::TheDillonForge') and
@@ -2775,13 +3010,56 @@ sub thwart_thief {
     return $defender->thwart_a_spy($self)->id;
 }
 
+sub shut_down_defenses {
+    my ($self, $defender) = @_;
+
+    my ($building) = shuffle grep {
+            ($_->efficiency > 0) and (
+              $_->class eq 'Lacuna::DB::Result::Building::SAW' or
+              $_->class eq 'Lacuna::DB::Result::Building::Shipyard' or
+              $_->class eq 'Lacuna::DB::Result::Building::Intelligence' or
+              $_->class eq 'Lacuna::DB::Result::Building::Security' or
+              $_->class eq 'Lacuna::DB::Result::Building::Module::PoliceStation' or
+              $_->class eq 'Lacuna::DB::Result::Building::Permanent::GratchsGauntlet' or
+              $_->class eq 'Lacuna::DB::Result::Building::Permanent::CitadelOfKnope' )
+            }
+            @{$self->on_body->building_cache};
+
+    return $self->building_not_found->id unless defined $building;
+    $self->on_body->empire->send_predefined_message(
+        tags        => ['Spies','Alert'],
+        filename    => 'building_loss_of_power.txt',
+        params      => [$building->name, $self->on_body->id, $self->on_body->name],
+    );
+    my $id = $self->empire->send_predefined_message(
+        tags        => ['Intelligence'],
+        filename    => 'we_disabled_a_building.txt',
+        params      => [$building->name,
+                        $self->on_body->x,
+                        $self->on_body->y,
+                        $self->on_body->name,
+                        $self->format_from],
+    )->id;
+    $self->on_body->add_news(25,
+                             'Employees at the %s on %s were left in the dark today during a power outage.',
+                             $building->name,
+                             $self->on_body->name);
+    if ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        my $dam = int($self->level/2);
+        my $eff = $building->efficiency;
+        $building->spend_efficiency($dam);
+        $building->update if $dam < $eff;
+    }
+    else {
+        $building->spend_efficiency(2 * $self->level)->update;
+    }
+    return $id;
+}
+
 sub shut_down_building {
     my ($self, $defender) = @_;
 
-    my ($building) = sort {
-            rand() <=> rand()
-        }
-        grep {
+    my ($building) = shuffle grep {
             ($_->efficiency > 0) and (
               $_->class eq 'Lacuna::DB::Result::Building::Archaeology' or
               $_->class eq 'Lacuna::DB::Result::Building::Development' or
@@ -2811,12 +3089,11 @@ sub shut_down_building {
         filename    => 'building_loss_of_power.txt',
         params      => [$building->name, $self->on_body->id, $self->on_body->name],
     );
-    $building->spend_efficiency(2 * $self->level)->update;
     $self->on_body->add_news(25,
                              'Employees at the %s on %s were left in the dark today during a power outage.',
                              $building->name,
                              $self->on_body->name);
-    return $self->empire->send_predefined_message(
+    my $id = $self->empire->send_predefined_message(
         tags        => ['Intelligence'],
         filename    => 'we_disabled_a_building.txt',
         params      => [$building->name,
@@ -2825,6 +3102,16 @@ sub shut_down_building {
                         $self->on_body->name,
                         $self->format_from],
     )->id;
+    if ($self->on_body->isa('Lacuna::DB::Result::Map::Body::Planet::Station')) {
+        my $dam = int($self->level/2);
+        my $eff = $building->efficiency;
+        $building->spend_efficiency($dam);
+        $building->update if $dam < $eff;
+    }
+    else {
+        $building->spend_efficiency(2 * $self->level)->update;
+    }
+    return $id;
 }
 
 sub take_control_of_probe {
@@ -2833,8 +3120,8 @@ sub take_control_of_probe {
     my $probe = Lacuna->db
                   ->resultset('Probes')
                   ->search_observatory({body_id => $self->on_body_id },
-                           { rows => 1, order_by => 'rand()' }
-                           )->single;
+                           { order_by => 'rand()' }
+                           )->first;
     return $self->probe_not_found->id unless defined $probe;
     $self->things_stolen( $self->things_stolen + 1 );
     $self->on_body->empire->send_predefined_message(
@@ -2874,8 +3161,8 @@ sub destroy_excavator {
     my $excavator = Lacuna->db
                      ->resultset('Excavators')
                      ->search({planet_id => $self->on_body->id},
-                              { rows => 1, order_by => 'rand()' }
-                              )->single;
+                              { order_by => 'rand()' }
+                              )->first;
     return $self->mission_objective_not_found('excavator')->id unless defined $excavator;
     my $body = $excavator->body;
     return $self->mission_objective_not_found('excavator')->id unless defined $body;
@@ -2909,8 +3196,8 @@ sub kill_contact_with_mining_platform {
     my $platform = Lacuna->db
                      ->resultset('MiningPlatforms')
                      ->search({planet_id => $self->on_body->id},
-                              { rows => 1, order_by => 'rand()' }
-                              )->single;
+                              { order_by => 'rand()' }
+                              )->first;
     return $self->mission_objective_not_found('mining platform')->id unless defined $platform;
     my $asteroid = $platform->asteroid;
     return $self->mission_objective_not_found('mining platform')->id unless defined $asteroid;
@@ -2943,8 +3230,8 @@ sub hack_observatory_probes {
     my $probe = Lacuna->db
                   ->resultset('Probes')
                   ->search_observatory({body_id => $self->on_body->id },
-                           { rows => 1, order_by => 'rand()' }
-                           )->single;
+                           { order_by => 'rand()' }
+                           )->first;
     return $self->probe_not_found->id unless defined $probe;
     $self->things_destroyed( $self->things_destroyed + 1 );
     my $message = $self->empire->send_predefined_message(
@@ -2987,8 +3274,8 @@ sub hack_offending_probes {
                  ->resultset('Probes')
                  ->search_observatory({star_id => $self->on_body->star_id,
                            empire_id => {'not in' => \@safe} },
-                          { rows => 1, order_by => 'rand()' }
-                          )->single;
+                          { order_by => 'rand()' }
+                          )->first;
     return $self->probe_not_found->id unless defined $probe;
     $defender->things_destroyed( $defender->things_destroyed + 1 );
     $defender->empire->send_predefined_message(
@@ -3024,8 +3311,8 @@ sub hack_local_probes {
                   ->resultset('Probes')
                   ->search_observatory( {star_id => $self->on_body->star_id,
                              empire_id => $self->on_body->empire_id },
-                            { rows => 1, order_by => 'rand()' }
-                          )->single;
+                            { order_by => 'rand()' }
+                          )->first;
     return $self->probe_not_found->id unless defined $probe;
     $self->things_destroyed( $self->things_destroyed + 1 );
     $self->on_body->empire->send_predefined_message(

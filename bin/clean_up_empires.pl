@@ -13,7 +13,7 @@ GetOptions(
     'quiet'         => \$quiet,  
 );
 
-out('Started');
+out('Started Clean Up Empires');
 my $start = DateTime->now;
 
 out('Loading DB');
@@ -41,6 +41,7 @@ my $to_be_deleted = $empires->search({ self_destruct_date => { '<' => $dtf->form
 my $delete_tally = 0;
 my $active_duration = 0;
 while (my $empire = $to_be_deleted->next) {
+    out('Deleting empire '.$empire->name);
     $delete_tally++;
     $active_duration += $start->epoch - $empire->date_created->epoch;
     $empire->delete;    
@@ -63,7 +64,8 @@ my $inactives = $empires->search({
     last_login           => { '<' => $dtf->format_datetime(DateTime->now->subtract( days => $inactivity_time_out) ) }, 
     self_destruct_active => 0, 
     id                   => { '>' => 1},
-    disable_self_destruct=> 0,
+    is_admin             => 0,
+#    disable_self_destruct=> 0,
 });
 while (my $empire = $inactives->next) {
     if ($empire->essentia >= 1) {
@@ -86,7 +88,7 @@ while (my $empire = $inactives->next) {
 
 out('Updating Viral Log');
 my $viral_log = $db->resultset('Lacuna::DB::Result::Log::Viral');
-my $add_deletes = $viral_log->search({date_stamp => format_date($start,'%F')},{rows=>1})->single;
+my $add_deletes = $viral_log->search({date_stamp => format_date($start,'%F')})->first;
 unless (defined $add_deletes) {
     $add_deletes = $viral_log->new({date_stamp => format_date($start,'%F')})->insert;
 }
@@ -98,7 +100,7 @@ $add_deletes->update({
 });
 my $cache = Lacuna->cache;
 my $create_date = format_date($start->clone->subtract(hours => 1),'%F');
-my $add_creates = $viral_log->search({date_stamp => $create_date},{rows=>1})->single;
+my $add_creates = $viral_log->search({date_stamp => $create_date})->first;
 unless (defined $add_deletes) {
     $add_creates = $viral_log->new({date_stamp => $create_date})->insert;
 }

@@ -13,7 +13,7 @@ sub check_star_for_incoming_probe {
     my $empire = $self->get_empire_by_session($session_id);
     my $date = 0;
     my @bodies = $empire->planets->get_column('id')->all;
-    my $incoming = Lacuna->db->resultset('Ships')->search({foreign_star_id=>$star_id, task=>'Travelling', type=>'probe', body_id => {in => \@bodies }}, {rows=>1})->single;
+    my $incoming = Lacuna->db->resultset('Ships')->search({foreign_star_id=>$star_id, task=>'Travelling', type=>'probe', body_id => {in => \@bodies }})->first;
     if (defined $incoming) {
         $date = $incoming->date_available_formatted;
     }
@@ -91,7 +91,7 @@ sub get_star {
 sub get_star_by_name {
     my ($self, $session_id, $star_name) = @_;
     my $empire = $self->get_empire_by_session($session_id);
-    my $star = Lacuna->db->resultset('Map::Star')->search({name => $star_name}, {rows=>1})->single;
+    my $star = Lacuna->db->resultset('Map::Star')->search({name => $star_name})->first;
     unless (defined $star) {
         confess [1002, "Couldn't find a star."];
     }
@@ -101,7 +101,7 @@ sub get_star_by_name {
 sub get_star_by_xy {
     my ($self, $session_id, $x, $y) = @_;
     my $empire = $self->get_empire_by_session($session_id);
-    my $star = Lacuna->db->resultset('Map::Star')->search({x=>$x, y=>$y}, {rows=>1})->single;
+    my $star = Lacuna->db->resultset('Map::Star')->search({x=>$x, y=>$y})->first;
     unless (defined $star) {
         confess [1002, "Couldn't find a star."];
     }
@@ -157,6 +157,41 @@ sub probe_summary_fissures {
     return { fissures => $fissures};
 }
 
+sub view_laws {
+    my ($self, $session_id, $star_id) = @_;
+    my $empire = $self->get_empire_by_session($session_id);
+    my $star = Lacuna->db->resultset('Map::Star')->find($star_id);
+    if ($star and $star->station_id) {
+        my $station = Lacuna->db->resultset('Lacuna::DB::Result::Map::Body')
+                ->find($star->station->id);
+        my @out;
+        my $laws;
+        if ($station) {
+            $laws = $station->laws;
+            while (my $law = $laws->next) {
+                push @out, $law->get_status($empire);
+            }
+        }
+        return {
+            star            => $star->get_status($empire),
+            status          => $self->format_status($empire, $station),
+            laws            => \@out,
+        };
+    }
+    else {
+        my $output;
+        if ($star) {
+            $output->{star} = $star->get_status($empire);
+        }
+        $output->{status} = $self->format_status($empire);
+        $output->{laws} = [ { name => "Not controlled by a station",
+                              descripition => "Not controlled by a station",
+                              date_enacted => "00 00 0000 00:00:00 +0000",
+                              id => 0
+                            } ];
+        return $output;
+    }
+}
 
 __PACKAGE__->register_rpc_method_names(qw(
     get_star_map
@@ -168,6 +203,7 @@ __PACKAGE__->register_rpc_method_names(qw(
     search_stars 
     check_star_for_incoming_probe
     probe_summary_fissures
+    view_laws
 ));
 
 no Moose;

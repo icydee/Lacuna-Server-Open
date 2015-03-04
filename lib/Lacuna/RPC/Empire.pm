@@ -4,7 +4,7 @@ use Moose;
 use utf8;
 no warnings qw(uninitialized);
 extends 'Lacuna::RPC';
-use Lacuna::Util qw(format_date randint);
+use Lacuna::Util qw(format_date randint real_ip_address);
 use DateTime;
 use String::Random qw(random_string);
 use UUID::Tiny ':std';
@@ -48,6 +48,7 @@ sub is_name_valid {
         ->not_empty
         ->no_padding
         ->no_restricted_chars
+        ->no_match(qr/^#/)
         ->no_profanity;
     return 1; 
 }
@@ -71,55 +72,78 @@ sub login {
     unless ($api_key) {
         confess [1002, 'You need an API Key.'];
     }
-    my $empire = Lacuna->db->resultset('Empire')->search({name=>$name})->next;
+    my $empire;
+    if ($name =~ /^#(-?\d+)$/)
+    {
+        $empire = Lacuna->db->resultset('Empire')->find({id=>$1});
+    }
+    else
+    {
+        $empire = Lacuna->db->resultset('Empire')->find({name=>$name});
+    }
     unless (defined $empire) {
          confess [1002, 'Empire does not exist.', $name];
     }
-    my $throttle = Lacuna->config->get('rpc_throttle') || 30;
-    if ($empire->rpc_rate > $throttle) {
-        Lacuna->cache->increment('rpc_limit_'.format_date(undef,'%d'), $empire->id, 1, 60 * 60 * 30);
-        confess [1010, 'Slow down, '.$empire->name.'! No more than '.$throttle.' requests per minute.'];
-    }
-    my $max = Lacuna->config->get('rpc_limit') || 2500;
-    if ($empire->rpc_count > $max) {
-        confess [1010, $empire->name.' has already made the maximum number of requests ('.$max.') you can make for one day.'];
-    }
-    my $config = Lacuna->config;
-    my $firebase_config = $config->get('firebase');
-    my $auth_code = Firebase::Auth->new( 
-        secret  => $firebase_config->{auth}{secret}, 
-        data    => {
-            id          => $empire->id,
-            chat_admin  => $empire->chat_admin ? \1 : \0,
-        }
-     #   data   => $data,
-    )->create_token;
+
+    my %session_params = (
+                          api_key => $api_key,
+                          request => $plack_request,
+                         );
 
     if ($empire->is_password_valid($password)) {
         if ($empire->stage eq 'new') {
             confess [1100, "Your empire has not been completely created. You must complete it in order to play the game.", { empire_id => $empire->id } ];
         }
-        return { 
-            session_id  => $empire->start_session({ 
-                api_key     => $api_key, 
-                request     => $plack_request,
-            })->id, 
-            status          => $self->format_status($empire),
-        };
     }
     elsif ($password ne '' && $empire->sitter_password eq $password) {
-        return {
-            session_id  => $empire->start_session({ 
-                api_key     => $api_key, 
-                request     => $plack_request, 
-                is_sitter   => 1,
-            })->id, 
-            status          => $self->format_status($empire),
-        };
+        $session_params{is_sitter} = 1;
     }
     else {
-        confess [1004, 'Password incorrect.', $password];            
+        my $ip = real_ip_address($plack_request);
+
+        # might be a mistake, might be an out of date sitter, might be
+        # a hacking attempt, let the user know.
+        unless (Lacuna->cache->get('invalid_login_attempt_' . $ip, $empire->id)) {
+            Lacuna->cache->set('invalid_login_attempt_' . $ip, $empire->id, 1, 12 * 60 * 60);
+            $empire->send_predefined_message(
+                                             filename => 'invalid_login_attempt.txt',
+                                             params   => [ $ip ],
+                                             from     => $empire->lacuna_expanse_corp,
+                                             tags     => [ 'Alert' ],
+                                            );
+        }
+
+        confess [1004, 'Password incorrect (' . $ip . ')', $password];
     }
+
+    my $config = Lacuna->config;
+    my $throttle = $config->get('rpc_throttle') || 30;
+    if ($empire->rpc_rate > $throttle) {
+        Lacuna->cache->increment('rpc_limit_'.format_date(undef,'%d'), $empire->id, 1, 60 * 60 * 30);
+        confess [1010, 'Slow down, '.$empire->name.'! No more than '.$throttle.' requests per minute.'];
+    }
+    my $max = $config->get('rpc_limit') || 2500;
+    if ($empire->rpc_count > $max) {
+        confess [1010, $empire->name.' has already made the maximum number of requests ('.$max.') you can make for one day.'];
+    }
+    my $firebase_config = $config->get('firebase');
+    if ($firebase_config)
+    {
+        my $auth_code = Firebase::Auth->new( 
+            secret  => $firebase_config->{auth}{secret}, 
+            data    => {
+                uid         => $empire->id,
+                isModerator => $empire->chat_admin ? \1 : \0,
+                isStaff     => $empire->is_admin ? \1 : \0,
+            }
+        )->create_token;
+    }
+
+    return {
+        session_id  => $empire->start_session(\%session_params)->id,
+        status      => $self->format_status($empire),
+    };
+
 }
 
 
@@ -197,7 +221,7 @@ sub change_password {
         ->eq($password2);
 
     my $empire = $self->get_empire_by_session($session_id);
-    if ($empire->current_session->is_sitter) {
+    if ($empire->has_current_session && $empire->current_session->is_sitter) {
         confess [1015, 'Sitters cannot modify the main account password.'];
     }
     
@@ -215,10 +239,10 @@ sub send_password_reset_message {
         $empire = $empires->find($options{empire_id});
     }
     elsif (exists $options{empire_name}) {
-        $empire = $empires->search({ name => $options{empire_name} }, { rows => 1 })->single;
+        $empire = $empires->search({ name => $options{empire_name} })->first;
     }
     elsif (exists $options{email}) {
-        $empire = $empires->search({ email => $options{email} }, { rows => 1 })->single;
+        $empire = $empires->search({ email => $options{email} })->first;
     }
     unless (defined $empire) {
         confess [1002, 'Empire not found.'];
@@ -247,7 +271,7 @@ sub reset_password {
     unless (defined $key && $key ne '') {
         confess [1002, 'You need a key to reset a password.'];
     }
-    my $empire = Lacuna->db->resultset('Empire')->search({password_recovery_key => $key}, { rows=>1 })->single;
+    my $empire = Lacuna->db->resultset('Empire')->search({password_recovery_key => $key})->first;
     unless (defined $empire) {
         confess [1002, 'The key you provided is invalid. Password not reset.'];
     }
@@ -386,7 +410,7 @@ sub get_status {
 sub view_profile {
     my ($self, $session_id) = @_;
     my $empire = $self->get_empire_by_session($session_id);
-    if ($empire->current_session->is_sitter) {
+    if ($empire->has_current_session && $empire->current_session->is_sitter) {
         confess [1015, 'Sitters cannot modify preferences.'];
     }
     my $medals = $empire->medals;
@@ -438,7 +462,7 @@ sub edit_profile {
     my $empire = $self->get_empire_by_session($session_id);
     
     # preferences
-    if ($empire->current_session->is_sitter) {
+    if ($empire->has_current_session && $empire->current_session->is_sitter) {
         confess [1015, 'Sitters cannot modify preferences.'];
     }
     if (exists $profile->{description}) {
