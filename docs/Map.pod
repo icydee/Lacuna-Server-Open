@@ -4,13 +4,96 @@ An export of the public map data (ie the Stars), is available to download in an 
 
  http://gameservername.lacunaexpanse.com.s3.amazonaws.com/stars.csv
 
-So if the server name is "us-east-1", then the the URL would be
+So if the server name is "us1", then the the URL would be
 
- http://us-east-1.lacunaexpanse.com.s3.amazonaws.com/stars.csv
+ http://us1.lacunaexpanse.com.s3.amazonaws.com/stars.csv
 
 =head1 Map Methods
 
 These methods are accessible via the C</map> URL.
+
+=head2 get_star_chunk
+
+This is a more efficient call to get star map details than get_star_map
+since the data will be cached on the server for a short while. If you
+(or someone in your alliance) requests the same data within a short period
+then it will be retrieved from a cache file rather than the database.
+
+It takes a hashref of named arguments.
+
+ {
+   "session_id" : "session-id-here",
+   "x_chunk"    : 2,
+   "y_chunk"    : -3
+ }
+
+Where each 'chunk' is a block of map which is 50 units wide by 50 units high.
+So chunk (2,-3) covers the x co-ordinate from 100 - 149 and y co-ordinate from
+-150 to -101
+
+The area returned will typically contain about 60 stars with their planets.
+
+ {
+   "stars" : [
+     {
+       "name"       : "Sol",
+       "color"      : "yellow",
+       "x"          : -41,
+       "y"          : 27,
+       "id"         : 99,
+       "station" : {
+         "id"       : 2001,
+         "x"        : 143,
+         "y"        : -27,
+         "name"     : "The Death Star",
+         "alliance" : {
+           "name"     : "The Borg Collective",
+           "id"       : 23,
+           "image"    : 'my_logo_v001',
+         }
+       }
+       "bodies" : [
+         {
+           "name"   : "Mercury",
+           "id"     : 345,
+           "orbit"  : 1,
+           "x"      : -40,
+           "y"      : 29,
+           "type"   : "habitable planet",
+           "image"  : "p13",
+           "size"   : 58,
+           "empire" {
+             "id"     : 945,
+             "name"   : "Earthlings",
+             "alignment"  : "ally",
+             "is_isolationist" : 1
+           }
+         },
+         {
+           "name"   : "Vesta",
+           "id"     : 346,
+           "orbit"  : 2,
+           "x"      : -39,
+           "y"      : 28,
+           "type"   : "asteroid",
+           "image"  : "p33",
+           "size"   : 3,
+           "body_has_fissure"  : 1,
+         },
+         ...
+       ]
+     },
+     {
+       ...
+     }
+     ...
+   ]
+ }
+
+The B<station> section is only returned if the star is under the influence of a Space station.
+
+The B<empire> section is only returned if the body is occupied by an empire.
+
 
 =head2 get_star_map
 
@@ -29,7 +112,7 @@ enough data to draw the starmap.
 
 Where B<left>, B<top>, B<right>, B<bottom> represent the sides of the bounding rectangle.
 
-The maximum area that can be returned is 1001 units (e.g 50 x 20 or 1001 x 1)
+The maximum area that can be returned is 3001 units (e.g 50 x 60 or 3001 x 1)
 
 Returns a chunk of the map as an array of hashes. 
 
