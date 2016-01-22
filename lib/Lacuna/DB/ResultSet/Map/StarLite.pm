@@ -7,6 +7,20 @@ no warnings qw(uninitialized);
 
 extends 'Lacuna::DB::ResultSet';
 
+# Get a cached and chunked section of the star map
+#
+sub get_star_chunk {
+    my ($self, $alliance_id, $empire_id, $x_chunk, $y_chunk) = @_;
+
+    my $left    = $x_chunk * 50;
+    my $bottom  = $y_chunk * 50;
+    my $right   = $left + 49;
+    my $top     = $bottom + 49;
+
+    return $self->get_star_map($alliance_id, $empire_id, $left, $right, $bottom, $top);
+}
+
+
 # Create a starmap
 #
 sub get_star_map {
